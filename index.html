@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+   ______                            __
+  / ____/___  ____ ___  ____  __  __/ /____  _____
+ / /   / __ \/ __ `__ \/ __ \/ / / / __/ _ \/ ___/
+/ /___/ /_/ / / / / / / /_/ / /_/ / /_/  __/ /
+\____/\____/_/ /_/ /_/ .___/\__,_/\__/\___/_/
+                    /_/
+        Created with Perplexity Computer
+        https://www.perplexity.ai/computer
+-->
+<meta name="generator" content="Perplexity Computer">
+<meta name="author" content="Perplexity Computer">
+<meta property="og:see_also" content="https://www.perplexity.ai/computer">
+<link rel="author" href="https://www.perplexity.ai/computer">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Construction Site Planner</title>
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.20.0/mapbox-gl.css" rel="stylesheet">
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.20.0/mapbox-gl.js"></script>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#000;color:#e0e0e0}
+body{position:relative;overflow:clip}
+#map{position:fixed;inset:0;z-index:0}
+
+/* ─── Glassmorphism helpers ─── */
+.glass{background:rgba(10,10,14,0.72);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.08)}
+.glass-dark{background:rgba(15,15,15,0.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.06)}
+
+/* ─── Left sidebar ─── */
+#left-sidebar{position:absolute;left:16px;top:50%;transform:translateY(-50%);z-index:10;display:flex;flex-direction:column;gap:4px}
+#right-sidebar{position:absolute;right:16px;top:50%;transform:translateY(-50%);z-index:15;display:flex;flex-direction:column;gap:4px}
+
+.sb-btn{width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:transparent;border:1px solid transparent;border-radius:8px;cursor:pointer;color:rgba(255,255,255,0.7);transition:all .15s;position:relative}
+.sb-btn:hover{color:#fff;border-color:rgba(255,255,255,0.2);background:rgba(255,255,255,0.06)}
+.sb-btn.active{color:#4dabf7;border-color:rgba(77,171,247,0.3);background:rgba(77,171,247,0.1)}
+.sb-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* Tooltip */
+.sb-btn .tip{position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%);white-space:nowrap;font-size:11px;padding:4px 8px;border-radius:4px;background:rgba(0,0,0,0.85);color:#ccc;pointer-events:none;opacity:0;transition:opacity .15s}
+.sb-btn:hover .tip{opacity:1}
+#right-sidebar .sb-btn .tip{left:auto;right:calc(100% + 10px)}
+
+/* Flyout submenu */
+.flyout{position:absolute;left:calc(100% + 8px);top:0;min-width:160px;border-radius:8px;padding:4px;display:none;z-index:20}
+.flyout.visible{display:block}
+.flyout-item{padding:6px 10px;font-size:11px;color:rgba(255,255,255,0.75);border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px}
+.flyout-item:hover{background:rgba(255,255,255,0.08);color:#fff}
+.flyout-item.active-style{color:#4dabf7}
+
+/* ─── Bottom address bar ─── */
+#address-bar{position:absolute;bottom:32px;left:50%;transform:translateX(-50%);width:400px;max-width:90vw;z-index:10;border-radius:24px;padding:0 4px;display:flex;align-items:center}
+#address-bar input{flex:1;background:transparent;border:none;color:#fff;padding:10px 14px;font-size:12px;outline:none;font-family:inherit}
+#address-bar input::placeholder{color:rgba(255,255,255,0.4)}
+#address-bar .search-icon{padding:0 8px 0 12px;color:rgba(255,255,255,0.4)}
+#address-bar .search-icon svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* Autocomplete dropdown */
+#autocomplete{position:absolute;bottom:100%;left:0;right:0;margin-bottom:4px;border-radius:12px;max-height:240px;overflow-y:auto;display:none;z-index:15}
+#autocomplete.visible{display:block}
+.ac-item{padding:8px 14px;font-size:11px;color:rgba(255,255,255,0.8);cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.04)}
+.ac-item:hover{background:rgba(255,255,255,0.06);color:#fff}
+.ac-item:last-child{border-bottom:none}
+.ac-place{font-weight:500;color:#fff}
+.ac-context{color:rgba(255,255,255,0.4);font-size:10px;margin-top:1px}
+
+/* ─── Right-click context menu ─── */
+#ctx-menu{position:absolute;z-index:50;min-width:180px;border-radius:10px;padding:4px;display:none}
+#ctx-menu.visible{display:block}
+.ctx-separator{height:1px;background:rgba(255,255,255,0.08);margin:4px 8px}
+.ctx-label{padding:4px 10px;font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,0.3);font-weight:600}
+.ctx-item{padding:6px 10px;font-size:11px;color:rgba(255,255,255,0.75);border-radius:4px;cursor:pointer}
+.ctx-item:hover{background:rgba(255,255,255,0.08);color:#fff}
+
+/* ─── Active tool indicator ─── */
+#tool-indicator{position:absolute;top:16px;left:50%;transform:translateX(-50%);z-index:10;border-radius:8px;padding:6px 14px;font-size:11px;color:rgba(255,255,255,0.8);display:none;text-align:center}
+#tool-indicator.visible{display:block}
+#tool-indicator .tool-name{font-weight:600;color:#4dabf7}
+#tool-indicator .tool-hint{font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px}
+
+/* ─── Estimation panel ─── */
+#estimation-panel{position:absolute;top:0;right:0;bottom:0;width:360px;z-index:11;transform:translateX(100%);transition:transform .3s ease;overflow:hidden;display:flex;flex-direction:column}
+#estimation-panel.visible{transform:translateX(0)}
+.est-header{padding:14px 16px;font-size:13px;font-weight:600;color:#fff;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.06);flex-shrink:0}
+.est-header button{background:transparent;border:1px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.6);padding:4px 10px;border-radius:5px;font-size:10px;cursor:pointer;font-family:inherit}
+.est-header button:hover{color:#fff;border-color:rgba(255,255,255,0.25)}
+.est-body{flex:1;overflow-y:auto}
+.est-table{width:100%;border-collapse:collapse}
+.est-table th{padding:7px 10px;text-align:left;font-weight:500;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:rgba(255,255,255,0.35);background:rgba(255,255,255,0.03);border-bottom:1px solid rgba(255,255,255,0.06);position:sticky;top:0;z-index:1}
+.est-table td{padding:5px 10px;font-size:11px;border-bottom:1px solid rgba(255,255,255,0.04);color:rgba(255,255,255,0.7)}
+.est-table .cat-row td{background:rgba(255,255,255,0.03);font-weight:600;color:#4dabf7;font-size:9px;text-transform:uppercase;letter-spacing:.05em;padding-top:10px}
+.est-table .total-row td{background:rgba(40,80,40,0.3);font-weight:700;color:#4ade80;border-top:1px solid rgba(255,255,255,0.1);position:sticky;bottom:0}
+.est-table input[type="number"]{width:56px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#fff;padding:2px 5px;border-radius:3px;font-size:11px;text-align:right;font-family:inherit}
+.est-table input[type="number"]:focus{outline:none;border-color:#4dabf7}
+.qty-cell{text-align:right;font-variant-numeric:tabular-nums}
+.sub-cell{text-align:right;font-variant-numeric:tabular-nums;color:rgba(255,255,255,0.35)}
+.sub-cell.has-val{color:#4ade80}
+
+/* ─── Properties panel ─── */
+#props-panel{position:absolute;bottom:60px;left:16px;z-index:10;border-radius:10px;padding:14px 16px;min-width:260px;max-width:300px;display:none;font-size:11px}
+#props-panel.visible{display:block}
+#props-panel .pp-title{font-size:13px;font-weight:600;color:#fff;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.pp-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0}
+.pp-label{color:rgba(255,255,255,0.45);font-size:10px}
+.pp-value{color:#fff;font-size:11px;font-weight:500}
+.pp-value input,.pp-value select{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#fff;padding:2px 6px;border-radius:4px;font-size:11px;font-family:inherit}
+.pp-value select{padding-right:16px}
+.pp-actions{margin-top:8px;display:flex;gap:4px}
+.pp-actions button{flex:1;padding:5px;border-radius:5px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:rgba(255,255,255,0.6);font-size:10px;cursor:pointer;font-family:inherit}
+.pp-actions button:hover{background:rgba(255,255,255,0.06);color:#fff}
+.pp-actions button.danger{border-color:rgba(255,60,60,0.2);color:#ff6060}
+.pp-actions button.danger:hover{background:rgba(255,60,60,0.1);color:#ff4040}
+
+/* material selector grid */
+.mat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-top:4px}
+.mat-swatch{width:100%;aspect-ratio:1;border-radius:4px;cursor:pointer;border:2px solid transparent;transition:border-color .1s}
+.mat-swatch:hover{border-color:rgba(255,255,255,0.3)}
+.mat-swatch.active{border-color:#4dabf7}
+
+/* ─── Status bar ─── */
+#status-bar{position:absolute;bottom:4px;left:16px;z-index:10;font-size:10px;color:rgba(255,255,255,0.4);display:flex;gap:12px;align-items:center}
+#status-bar a{color:rgba(255,255,255,0.3);text-decoration:none;font-size:9px}
+#status-bar a:hover{color:rgba(255,255,255,0.6)}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.2)}
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- Left sidebar -->
+<div id="left-sidebar">
+  <button class="sb-btn" id="btn-save" title="Save Project">
+    <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+    <span class="tip">Save Project</span>
+  </button>
+  <button class="sb-btn" id="btn-open" title="Open Project">
+    <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+    <span class="tip">Open Project</span>
+  </button>
+  <button class="sb-btn" id="btn-layers" title="Map Style">
+    <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    <span class="tip">Map Style</span>
+    <div class="flyout glass" id="flyout-layers">
+      <div class="flyout-item active-style" data-style="mapbox://styles/mapbox/standard-satellite">● Standard Satellite</div>
+      <div class="flyout-item" data-style="mapbox://styles/mapbox/satellite-streets-v12">● Satellite Streets</div>
+      <div class="flyout-item" data-style="mapbox://styles/mapbox/standard">● Standard (3D)</div>
+      <div class="flyout-item" data-style="mapbox://styles/mapbox/light-v11">● Light</div>
+      <div class="flyout-item" data-style="mapbox://styles/mapbox/dark-v11">● Dark</div>
+    </div>
+  </button>
+  <button class="sb-btn" id="btn-terrain" title="Terrain">
+    <svg viewBox="0 0 24 24"><path d="M8 21l4-10 4 10"/><path d="M1 21l6-14 4 7"/><path d="M15 21l4-7 4 7"/></svg>
+    <span class="tip">Terrain</span>
+  </button>
+  <button class="sb-btn" id="btn-labels" title="Labels">
+    <svg viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+    <span class="tip">Toggle Labels</span>
+  </button>
+</div>
+
+<!-- Right sidebar -->
+<div id="right-sidebar">
+  <button class="sb-btn" id="btn-import" title="Import 3D Model">
+    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    <span class="tip">Import 3D Model</span>
+  </button>
+  <button class="sb-btn" id="btn-draw" title="Drawing Mode">
+    <svg viewBox="0 0 24 24"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+    <span class="tip">Drawing Mode</span>
+  </button>
+  <button class="sb-btn" id="btn-estimation" title="Estimation Panel">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+    <span class="tip">Estimation Panel</span>
+  </button>
+</div>
+
+<!-- Bottom address bar -->
+<div id="address-bar" class="glass">
+  <span class="search-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+  <input type="text" id="search-input" placeholder="Search address or coordinates..." autocomplete="off">
+  <div id="autocomplete" class="glass"></div>
+</div>
+
+<!-- Right-click context menu -->
+<div id="ctx-menu" class="glass"></div>
+
+<!-- Active tool indicator -->
+<div id="tool-indicator" class="glass"></div>
+
+<!-- Estimation panel -->
+<div id="estimation-panel" class="glass-dark">
+  <div class="est-header">
+    Estimation
+    <button id="btn-export-csv">Export CSV</button>
+  </div>
+  <div class="est-body">
+    <table class="est-table">
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th style="text-align:right">Qty</th>
+          <th>Unit</th>
+          <th style="text-align:right">$/Unit</th>
+          <th style="text-align:right">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody id="est-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Properties panel -->
+<div id="props-panel" class="glass"></div>
+
+<!-- Status bar -->
+<div id="status-bar">
+  <span id="stat-coords">—</span>
+  <span id="stat-zoom">z17</span>
+  <span id="stat-tool">Ready</span>
+  <a href="https://www.perplexity.ai/computer" target="_blank" rel="noopener noreferrer">Created with Perplexity Computer</a>
+</div>
+
+<!-- Three.js import map -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+
+// ═════════════════════════════════════════════
+// CONSTANTS
+// ═════════════════════════════════════════════
+const FEET_TO_METERS = 0.3048;
+const METERS_TO_FEET = 3.28084;
+const SQM_TO_SQFT = 10.7639;
+const FLOOR_HEIGHTS = { 9: 'Residential (9ft)', 10: 'Commercial (10ft)', 12: 'Industrial (12ft)', 14: 'Warehouse (14ft)' };
+
+const MATERIAL_PRESETS = {
+  concrete:    { color: 0xb0b0b0, roughness: 0.9,  metalness: 0.0 },
+  brick:       { color: 0x8b4513, roughness: 0.85, metalness: 0.0 },
+  glass:       { color: 0x88ccee, roughness: 0.1,  metalness: 0.2, transparent: true, opacity: 0.4 },
+  steel:       { color: 0x888888, roughness: 0.3,  metalness: 0.8 },
+  wood:        { color: 0xdeb887, roughness: 0.8,  metalness: 0.0 },
+  stucco:      { color: 0xf5f0e8, roughness: 0.95, metalness: 0.0 },
+  metal_panel: { color: 0x666666, roughness: 0.4,  metalness: 0.7 },
+  stone:       { color: 0x9e9e8e, roughness: 0.9,  metalness: 0.0 }
+};
+
+const INFRA_CONFIG = {
+  road:       { width: 6.0,  color: 0x333333, label: 'Road',      depth: 0, unit: 'LF' },
+  sidewalk:   { width: 1.5,  color: 0xcccccc, label: 'Sidewalk',  depth: 0, unit: 'LF' },
+  driveway:   { width: 3.6,  color: 0x555555, label: 'Driveway',  depth: 0, unit: 'LF' },
+  sewer:      { radius: 0.10, color: 0x8B4513, label: 'Sewer Pipe',  depth: -1.8, unit: 'LF' },
+  water:      { radius: 0.075,color: 0x0066ff, label: 'Water Main',  depth: -1.5, unit: 'LF' },
+  electrical: { radius: 0.05, color: 0xff0000, label: 'Electrical',  depth: -0.6, unit: 'LF' }
+};
+
+function getMat(type) {
+  const p = MATERIAL_PRESETS[type] || MATERIAL_PRESETS.concrete;
+  return new THREE.MeshStandardMaterial({ ...p });
+}
+function roundTo4(v) { return Math.round(v / 4) * 4; }
+
+// ═════════════════════════════════════════════
+// STATE
+// ═════════════════════════════════════════════
+const STATE = {
+  drawingMode: false,
+  activeTool: null,
+  selectedObject: null,
+  buildings: [],
+  infrastructure: [],
+  importedModels: [],
+  lineItems: [],
+  terrainOn: true,
+  terrainExag: 1.0,
+  labelsOn: true,
+  gridSnap: false,
+  buildingCounter: 0
+};
+
+// Undo/Redo
+const undoStack = [];
+const redoStack = [];
+function execAction(action) { action.exec(); undoStack.push(action); redoStack.length = 0; }
+function undo() { if (!undoStack.length) return; const a = undoStack.pop(); a.undo(); redoStack.push(a); renderEstimation(); }
+function redo() { if (!redoStack.length) return; const a = redoStack.pop(); a.exec(); undoStack.push(a); renderEstimation(); }
+
+// ═════════════════════════════════════════════
+// MAP
+// ═════════════════════════════════════════════
+mapboxgl.accessToken = window.__MAPBOX_TOKEN || 'YOUR_MAPBOX_ACCESS_TOKEN';
+
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/standard-satellite',
+  center: [-73.7854, 42.7756],
+  zoom: 17,
+  pitch: 60,
+  bearing: -17.6,
+  antialias: true,
+  maxPitch: 85
+});
+
+// ═════════════════════════════════════════════
+// SCENE ORIGIN & COORD HELPERS
+// ═════════════════════════════════════════════
+let siteCenter = [-73.7854, 42.7756];
+let originMercator = mapboxgl.MercatorCoordinate.fromLngLat(siteCenter, 0);
+let sceneOrigin = {
+  translateX: originMercator.x,
+  translateY: originMercator.y,
+  translateZ: originMercator.z,
+  scale: originMercator.meterInMercatorCoordinateUnits()
+};
+
+function lngLatToScene(lng, lat, alt = 0) {
+  const mc = mapboxgl.MercatorCoordinate.fromLngLat([lng, lat], alt);
+  return new THREE.Vector3(
+    (mc.x - sceneOrigin.translateX) / sceneOrigin.scale,
+    -(mc.y - sceneOrigin.translateY) / sceneOrigin.scale,
+    (mc.z - sceneOrigin.translateZ) / sceneOrigin.scale
+  );
+}
+
+function sceneToLngLat(pos) {
+  const mx = pos.x * sceneOrigin.scale + sceneOrigin.translateX;
+  const my = -pos.y * sceneOrigin.scale + sceneOrigin.translateY;
+  const mz = pos.z * sceneOrigin.scale + sceneOrigin.translateZ;
+  const mc = new mapboxgl.MercatorCoordinate(mx, my, mz);
+  const ll = mc.toLngLat();
+  return { lng: ll.lng, lat: ll.lat };
+}
+
+// ═════════════════════════════════════════════
+// THREE.JS CUSTOM LAYER
+// ═════════════════════════════════════════════
+let scene, camera, renderer;
+let lastProjectionMatrix = new THREE.Matrix4();
+
+const customLayer = {
+  id: 'construction-3d',
+  type: 'custom',
+  renderingMode: '3d',
+
+  onAdd(mapInst, gl) {
+    camera = new THREE.Camera();
+    scene = new THREE.Scene();
+
+    // Lighting
+    scene.add(new THREE.AmbientLight(0x404040, 0.6));
+    const hemi = new THREE.HemisphereLight(0xddeeff, 0x0f0e0d, 0.8);
+    scene.add(hemi);
+    const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+    sun.position.set(50, 100, 30).normalize();
+    scene.add(sun);
+
+    renderer = new THREE.WebGLRenderer({
+      canvas: mapInst.getCanvas(),
+      context: gl,
+      antialias: true
+    });
+    renderer.autoClear = false;
+  },
+
+  render(gl, args) {
+    // Support both new and old Mapbox callback signatures
+    const matrix = args?.defaultProjectionData?.mainMatrix || args;
+    const m = new THREE.Matrix4().fromArray(matrix);
+    const l = new THREE.Matrix4()
+      .makeTranslation(sceneOrigin.translateX, sceneOrigin.translateY, sceneOrigin.translateZ)
+      .scale(new THREE.Vector3(sceneOrigin.scale, -sceneOrigin.scale, sceneOrigin.scale));
+
+    camera.projectionMatrix = m.multiply(l);
+    lastProjectionMatrix.copy(camera.projectionMatrix);
+
+    renderer.resetState();
+    renderer.render(scene, camera);
+    map.triggerRepaint();
+  }
+};
+
+// ═════════════════════════════════════════════
+// MAP EVENTS
+// ═════════════════════════════════════════════
+map.on('style.load', () => {
+  map.addSource('mapbox-dem', {
+    type: 'raster-dem',
+    url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+    tileSize: 512,
+    maxzoom: 14
+  });
+  map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.0 });
+  map.addLayer(customLayer);
+});
+
+map.on('mousemove', (e) => {
+  const { lng, lat } = e.lngLat;
+  document.getElementById('stat-coords').textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+});
+map.on('zoom', () => {
+  document.getElementById('stat-zoom').textContent = `z${map.getZoom().toFixed(1)}`;
+});
+
+// ═════════════════════════════════════════════
+// DRAWING TOOL SYSTEM
+// ═════════════════════════════════════════════
+let drawClickHandler = null;
+let drawMoveHandler = null;
+let drawDblClickHandler = null;
+let drawPreview = null;
+let drawState = {};
+
+function setActiveTool(name, hint) {
+  STATE.activeTool = name;
+  const ind = document.getElementById('tool-indicator');
+  if (name) {
+    ind.innerHTML = `<div class="tool-name">${name}</div><div class="tool-hint">${hint || 'ESC to cancel'}</div>`;
+    ind.classList.add('visible');
+    document.getElementById('stat-tool').textContent = name;
+  } else {
+    ind.classList.remove('visible');
+    document.getElementById('stat-tool').textContent = 'Ready';
+  }
+}
+
+function clearActiveTool() {
+  if (drawClickHandler) { map.off('click', drawClickHandler); drawClickHandler = null; }
+  if (drawMoveHandler) { map.off('mousemove', drawMoveHandler); drawMoveHandler = null; }
+  if (drawDblClickHandler) { map.off('dblclick', drawDblClickHandler); drawDblClickHandler = null; }
+  if (drawPreview && scene) { scene.remove(drawPreview); drawPreview = null; }
+  drawState = {};
+  map.dragPan.enable();
+  map.doubleClickZoom.enable();
+  map.getCanvas().style.cursor = '';
+  setActiveTool(null);
+  map.triggerRepaint();
+}
+
+function startDrawTool(toolName, config) {
+  clearActiveTool();
+  map.dragPan.disable();
+  map.doubleClickZoom.disable();
+  map.getCanvas().style.cursor = 'crosshair';
+
+  if (toolName === 'Rectangle') startRectangle();
+  else if (toolName === 'Circle') startCircle();
+  else if (toolName === 'Line') startLine();
+  else if (toolName === 'Polygon') startPolygon();
+  else if (toolName === 'Box') startBox();
+  else if (toolName === 'Cylinder') startCylinder();
+  else if (toolName === 'Measure Distance') startMeasure();
+  else if (toolName === 'Query Elevation') startElevation();
+  else if (config && (config.radius !== undefined || config.width !== undefined)) startInfra(toolName, config);
+
+  setActiveTool(toolName, toolName === 'Polygon' ? 'Double-click to finish · ESC to cancel' :
+    (config?.radius || config?.width) ? 'Double-click to finish · ESC to cancel' : 'Click to place · ESC to cancel');
+}
+
+// ─── Rectangle Tool ───
+function startRectangle() {
+  drawState = { cornerA: null };
+  drawClickHandler = (e) => {
+    const { lng, lat } = e.lngLat;
+    const sp = lngLatToScene(lng, lat, 0);
+    if (!drawState.cornerA) {
+      drawState.cornerA = { lng, lat, scene: sp };
+    } else {
+      commitRectangle(drawState.cornerA, { lng, lat, scene: sp });
+      clearActiveTool();
+    }
+  };
+  drawMoveHandler = (e) => {
+    if (!drawState.cornerA) return;
+    const { lng, lat } = e.lngLat;
+    const cb = lngLatToScene(lng, lat, 0);
+    const ca = drawState.cornerA.scene;
+    if (drawPreview) scene.remove(drawPreview);
+    const w = Math.abs(cb.x - ca.x);
+    const d = Math.abs(cb.z - ca.z);
+    if (w < 0.01 || d < 0.01) return;
+    const geo = new THREE.PlaneGeometry(w, d);
+    geo.rotateX(-Math.PI / 2);
+    drawPreview = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x4dabf7, transparent: true, opacity: 0.25, side: THREE.DoubleSide }));
+    drawPreview.position.set((ca.x + cb.x) / 2, 0.1, (ca.z + cb.z) / 2);
+    scene.add(drawPreview);
+    map.triggerRepaint();
+  };
+  map.on('click', drawClickHandler);
+  map.on('mousemove', drawMoveHandler);
+}
+
+function commitRectangle(a, b) {
+  const wM = Math.abs(b.scene.x - a.scene.x);
+  const dM = Math.abs(b.scene.z - a.scene.z);
+  const wFt = Math.round(wM * METERS_TO_FEET);
+  const dFt = Math.round(dM * METERS_TO_FEET);
+  if (wFt < 1 || dFt < 1) return;
+
+  STATE.buildingCounter++;
+  const name = `Building ${String.fromCharCode(64 + STATE.buildingCounter)}`;
+
+  const building = {
+    id: `bld-${Date.now()}`,
+    name,
+    type: 'building',
+    cornerA: { lng: a.lng, lat: a.lat },
+    cornerB: { lng: b.lng, lat: b.lat },
+    centerScene: new THREE.Vector3((a.scene.x + b.scene.x) / 2, 0, (a.scene.z + b.scene.z) / 2),
+    wM, dM, wFt, dFt,
+    floors: 1,
+    floorHeightFt: 10,
+    material: 'concrete',
+    group: null
+  };
+
+  createBuildingMesh(building);
+  const action = {
+    exec: () => { scene.add(building.group); addBuildingEstItems(building); if (!STATE.buildings.includes(building)) STATE.buildings.push(building); renderEstimation(); map.triggerRepaint(); },
+    undo: () => { scene.remove(building.group); removeBuildingEstItems(building); STATE.buildings = STATE.buildings.filter(b => b !== building); renderEstimation(); map.triggerRepaint(); }
+  };
+  execAction(action);
+  selectObject(building);
+}
+
+function createBuildingMesh(building) {
+  if (building.group) scene.remove(building.group);
+  const group = new THREE.Group();
+  group.name = building.id;
+  const fhM = building.floorHeightFt * FEET_TO_METERS;
+
+  for (let i = 0; i < building.floors; i++) {
+    const geo = new THREE.BoxGeometry(building.wM, fhM, building.dM);
+    const mat = getMat(building.material);
+    if (i % 2 === 1) mat.color.multiplyScalar(0.93);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.y = fhM * i + fhM / 2;
+    mesh.userData = { type: 'building-floor', buildingId: building.id, floorIndex: i };
+
+    const edges = new THREE.EdgesGeometry(geo);
+    mesh.add(new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, opacity: 0.25, transparent: true })));
+    group.add(mesh);
+  }
+
+  group.position.copy(building.centerScene);
+  group.userData = { ref: building };
+  building.group = group;
+}
+
+// ─── Circle Tool ───
+function startCircle() {
+  drawState = { center: null };
+  drawClickHandler = (e) => {
+    const { lng, lat } = e.lngLat;
+    const sp = lngLatToScene(lng, lat, 0);
+    if (!drawState.center) {
+      drawState.center = { lng, lat, scene: sp };
+    } else {
+      commitCircle(drawState.center, sp);
+      clearActiveTool();
+    }
+  };
+  drawMoveHandler = (e) => {
+    if (!drawState.center) return;
+    const sp = lngLatToScene(e.lngLat.lng, e.lngLat.lat, 0);
+    const r = drawState.center.scene.distanceTo(sp);
+    if (r < 0.1) return;
+    if (drawPreview) scene.remove(drawPreview);
+    const geo = new THREE.CircleGeometry(r, 48);
+    geo.rotateX(-Math.PI / 2);
+    drawPreview = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x4dabf7, transparent: true, opacity: 0.25, side: THREE.DoubleSide }));
+    drawPreview.position.copy(drawState.center.scene);
+    drawPreview.position.y = 0.1;
+    scene.add(drawPreview);
+    map.triggerRepaint();
+  };
+  map.on('click', drawClickHandler);
+  map.on('mousemove', drawMoveHandler);
+}
+
+function commitCircle(center, edge) {
+  const rM = center.scene.distanceTo(edge);
+  const rFt = Math.round(rM * METERS_TO_FEET);
+  const areaSF = Math.round(Math.PI * rFt * rFt);
+  const geo = new THREE.CircleGeometry(rM, 48);
+  geo.rotateX(-Math.PI / 2);
+  const mesh = new THREE.Mesh(geo, getMat('concrete'));
+  mesh.position.copy(center.scene);
+  mesh.position.y = 0.1;
+  mesh.userData = { type: 'circle', rFt, areaSF, center: { lng: center.lng, lat: center.lat } };
+
+  const obj = { id: `circle-${Date.now()}`, type: 'circle', mesh, rFt, areaSF };
+  const action = {
+    exec: () => { scene.add(mesh); map.triggerRepaint(); },
+    undo: () => { scene.remove(mesh); map.triggerRepaint(); }
+  };
+  execAction(action);
+}
+
+// ─── Line Tool ───
+function startLine() {
+  drawState = { start: null };
+  drawClickHandler = (e) => {
+    const sp = lngLatToScene(e.lngLat.lng, e.lngLat.lat, 0);
+    if (!drawState.start) {
+      drawState.start = sp;
+    } else {
+      commitLine(drawState.start, sp);
+      clearActiveTool();
+    }
+  };
+  drawMoveHandler = (e) => {
+    if (!drawState.start) return;
+    const sp = lngLatToScene(e.lngLat.lng, e.lngLat.lat, 0);
+    if (drawPreview) scene.remove(drawPreview);
+    const pts = [drawState.start.clone(), sp.clone()];
+    pts[0].y = 0.2; pts[1].y = 0.2;
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    drawPreview = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xffffff }));
+    scene.add(drawPreview);
+    map.triggerRepaint();
+  };
+  map.on('click', drawClickHandler);
+  map.on('mousemove', drawMoveHandler);
+}
+
+function commitLine(a, b) {
+  const dist = a.distanceTo(b);
+  const distFt = Math.round(dist * METERS_TO_FEET);
+  const pts = [a.clone(), b.clone()];
+  pts[0].y = 0.2; pts[1].y = 0.2;
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mesh = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 }));
+  mesh.userData = { type: 'line', distFt };
+  const action = {
+    exec: () => { scene.add(mesh); map.triggerRepaint(); },
+    undo: () => { scene.remove(mesh); map.triggerRepaint(); }
+  };
+  execAction(action);
+}
+
+// ─── Polygon Tool ───
+function startPolygon() {
+  drawState = { vertices: [] };
+  drawClickHandler = (e) => {
+    const sp = lngLatToScene(e.lngLat.lng, e.lngLat.lat, 0);
+    drawState.vertices.push(sp);
+    updatePolygonPreview();
+  };
+  drawDblClickHandler = (e) => {
+    e.preventDefault();
+    if (drawState.vertices.length >= 3) commitPolygon(drawState.vertices);
+    clearActiveTool();
+  };
+  drawMoveHandler = (e) => {
+    drawState.cursor = lngLatToScene(e.lngLat.lng, e.lngLat.lat, 0);
+    updatePolygonPreview();
+  };
+  map.on('click', drawClickHandler);
+  map.on('dblclick', drawDblClickHandler);
+  map.on('mousemove', drawMoveHandler);
+}
+
+function updatePolygonPreview() {
+  if (drawPreview) scene.remove(drawPreview);
+  const verts = [...drawState.vertices];
+  if (drawState.cursor) verts.push(drawState.cursor);
+  if (verts.length < 2) return;
+  const pts = verts.map(v => new THREE.Vector3(v.x, 0.15, v.z));
+  pts.push(pts[0].clone());
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  drawPreview = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x4dabf7 }));
+  scene.add(drawPreview);
+  map.triggerRepaint();
+}
+
+function commitPolygon(vertices) {
+  if (vertices.length < 3) return;
+  const shape = new THREE.Shape();
+  shape.moveTo(vertices[0].x, vertices[0].z);
+  for (let i = 1; i < vertices.length; i++) shape.lineTo(vertices[i].x, vertices[i].z);
+  shape.closePath();
+
+  const fhM = 10 * FEET_TO_METERS;
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: fhM, bevelEnabled: false });
+  geo.rotateX(-Math.PI / 2);
+  const mesh = new THREE.Mesh(geo, getMat('concrete'));
+  mesh.position.y = 0;
+  mesh.userData = { type: 'polygon' };
+
+  const action = {
+    exec: () => { scene.add(mesh); map.triggerRepaint(); },
+    undo: () => { scene.remove(mesh); map.triggerRepaint(); }
+  };
+  execAction(action);
+}
+
+// ─── Box Tool ───
+function startBox() {
+  drawClickHandler = (e) => {
+    const sp = lngLatToScene(e.lngLat.lng, e.lngLat.lat, 0);
+    const sM = 20 * FEET_TO_METERS;
+    const hM = 10 * FEET_TO_METERS;
+    const geo = new THREE.BoxGeometry(sM, hM, sM);
+    const mesh = new THREE.Mesh(geo, getMat('concrete'));
+    mesh.position.set(sp.x, hM / 2, sp.z);
+    const edges = new THREE.EdgesGeometry(geo);
+    mesh.add(new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, opacity: 0.25, transparent: true })));
+    mesh.userData = { type: 'box', wFt: 20, dFt: 20, hFt: 10 };
+
+    const action = {
+      exec: () => { scene.add(mesh); map.triggerRepaint(); },
+      undo: () => { scene.remove(mesh); map.triggerRepaint(); }
+    };
+    execAction(action);
+    clearActiveTool();
+  };
+  map.on('click', drawClickHandler);
+}
+
+// ─── Cylinder Tool ───
+function startCylinder() {
+  drawClickHandler = (e) => {
+    const sp = lngLatToScene(e.lngLat.lng, e.lngLat.lat, 0);
+    const rM = 10 * FEET_TO_METERS;
+    const hM = 20 * FEET_TO_METERS;
+    const geo = new THREE.CylinderGeometry(rM, rM, hM, 24);
+    const mesh = new THREE.Mesh(geo, getMat('concrete'));
+    mesh.position.set(sp.x, hM / 2, sp.z);
+    mesh.userData = { type: 'cylinder', rFt: 10, hFt: 20 };
+
+    const action = {
+      exec: () => { scene.add(mesh); map.triggerRepaint(); },
+      undo: () => { scene.remove(mesh); map.triggerRepaint(); }
+    };
+    execAction(action);
+    clearActiveTool();
+  };
+  map.on('click', drawClickHandler);
+}
+
+// ─── Infrastructure Tool ───
+function startInfra(toolName, config) {
+  drawState = { points: [], config, toolName };
+  setActiveTool(toolName, 'Click to add points · Double-click to finish');
+
+  drawClickHandler = (e) => {
+    const sp = lngLatToScene(e.lngLat.lng, e.lngLat.lat, config.depth || 0);
+    sp.y = (config.depth || 0);
+    drawState.points.push({ lngLat: [e.lngLat.lng, e.lngLat.lat], scene: sp });
+    updateInfraPreview();
+  };
+  drawDblClickHandler = (e) => {
+    e.preventDefault();
+    if (drawState.points.length >= 2) commitInfra();
+    clearActiveTool();
+  };
+  drawMoveHandler = (e) => {
+    drawState.cursor = lngLatToScene(e.lngLat.lng, e.lngLat.lat, config.depth || 0);
+    drawState.cursor.y = config.depth || 0;
+    updateInfraPreview();
+  };
+  map.on('click', drawClickHandler);
+  map.on('dblclick', drawDblClickHandler);
+  map.on('mousemove', drawMoveHandler);
+}
+
+function updateInfraPreview() {
+  if (drawPreview) scene.remove(drawPreview);
+  const allPts = drawState.points.map(p => p.scene.clone());
+  if (drawState.cursor) allPts.push(drawState.cursor.clone());
+  if (allPts.length < 2) return;
+
+  const curve = new THREE.CatmullRomCurve3(allPts, false, 'centripetal');
+  const c = drawState.config;
+  let geo;
+  if (c.radius !== undefined) {
+    geo = new THREE.TubeGeometry(curve, allPts.length * 16, c.radius, 8, false);
+  } else {
+    const shape = new THREE.Shape();
+    const hw = c.width / 2;
+    shape.moveTo(-hw, -0.05);
+    shape.lineTo(hw, -0.05);
+    shape.lineTo(hw, 0.05);
+    shape.lineTo(-hw, 0.05);
+    shape.closePath();
+    geo = new THREE.ExtrudeGeometry(shape, { steps: allPts.length * 16, extrudePath: curve, bevelEnabled: false });
+  }
+
+  const mat = new THREE.MeshStandardMaterial({ color: c.color, roughness: 0.8, transparent: true, opacity: 0.6 });
+  drawPreview = new THREE.Mesh(geo, mat);
+  scene.add(drawPreview);
+  map.triggerRepaint();
+}
+
+function commitInfra() {
+  const pts = drawState.points.map(p => p.scene.clone());
+  const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+  const lengthM = curve.getLength();
+  const lengthLF = Math.round(lengthM * METERS_TO_FEET);
+  const c = drawState.config;
+
+  let geo;
+  if (c.radius !== undefined) {
+    geo = new THREE.TubeGeometry(curve, pts.length * 16, c.radius, 8, false);
+  } else {
+    const shape = new THREE.Shape();
+    const hw = c.width / 2;
+    shape.moveTo(-hw, -0.05);
+    shape.lineTo(hw, -0.05);
+    shape.lineTo(hw, 0.05);
+    shape.lineTo(-hw, 0.05);
+    shape.closePath();
+    geo = new THREE.ExtrudeGeometry(shape, { steps: pts.length * 16, extrudePath: curve, bevelEnabled: false });
+  }
+
+  const mat = new THREE.MeshStandardMaterial({ color: c.color, roughness: 0.8 });
+  const mesh = new THREE.Mesh(geo, mat);
+
+  const infra = {
+    id: `infra-${Date.now()}`,
+    type: 'infrastructure',
+    subtype: drawState.toolName,
+    label: c.label,
+    lengthLF,
+    controlPoints: drawState.points.map(p => p.lngLat),
+    mesh,
+    config: c
+  };
+  mesh.userData = { ref: infra };
+
+  const action = {
+    exec: () => { scene.add(mesh); addInfraEstItem(infra); if (!STATE.infrastructure.includes(infra)) STATE.infrastructure.push(infra); renderEstimation(); map.triggerRepaint(); },
+    undo: () => { scene.remove(mesh); removeInfraEstItem(infra); STATE.infrastructure = STATE.infrastructure.filter(i => i !== infra); renderEstimation(); map.triggerRepaint(); }
+  };
+  execAction(action);
+}
+
+// ─── Measure Tool ───
+function startMeasure() {
+  drawState = { start: null };
+  drawClickHandler = (e) => {
+    const sp = lngLatToScene(e.lngLat.lng, e.lngLat.lat, 0);
+    if (!drawState.start) {
+      drawState.start = sp;
+    } else {
+      const dist = drawState.start.distanceTo(sp);
+      const distFt = Math.round(dist * METERS_TO_FEET);
+      alert(`Distance: ${distFt} ft (${(dist).toFixed(2)} m)`);
+      clearActiveTool();
+    }
+  };
+  drawMoveHandler = (e) => {
+    if (!drawState.start) return;
+    const sp = lngLatToScene(e.lngLat.lng, e.lngLat.lat, 0);
+    if (drawPreview) scene.remove(drawPreview);
+    const pts = [new THREE.Vector3(drawState.start.x, 0.3, drawState.start.z), new THREE.Vector3(sp.x, 0.3, sp.z)];
+    drawPreview = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffff00 }));
+    scene.add(drawPreview);
+    map.triggerRepaint();
+  };
+  map.on('click', drawClickHandler);
+  map.on('mousemove', drawMoveHandler);
+}
+
+// ─── Elevation Query ───
+function startElevation() {
+  drawClickHandler = (e) => {
+    const elev = map.queryTerrainElevation(e.lngLat) || 0;
+    alert(`Elevation at [${e.lngLat.lng.toFixed(5)}, ${e.lngLat.lat.toFixed(5)}]: ${(elev * METERS_TO_FEET).toFixed(1)} ft (${elev.toFixed(2)} m)`);
+    clearActiveTool();
+  };
+  map.on('click', drawClickHandler);
+}
+
+// ═════════════════════════════════════════════
+// ESTIMATION TABLE
+// ═════════════════════════════════════════════
+function addBuildingEstItems(b) {
+  const fpSF = b.wFt * b.dFt;
+  const perimLF = roundTo4(2 * (b.wFt + b.dFt));
+  // Remove existing for this building
+  STATE.lineItems = STATE.lineItems.filter(li => !li.id.startsWith(b.id));
+  STATE.lineItems.push({ id: `${b.id}-fdn`, category: 'STRUCTURE', component: `${b.name} — Foundation`, qty: fpSF, unit: 'SF', unitCost: 0 });
+  STATE.lineItems.push({ id: `${b.id}-perim`, category: 'STRUCTURE', component: `${b.name} — Perimeter`, qty: perimLF, unit: 'LF', unitCost: 0 });
+  for (let i = 0; i < b.floors; i++) {
+    STATE.lineItems.push({ id: `${b.id}-fl${i}`, category: 'STRUCTURE', component: `${b.name} — Floor ${i + 1} (${b.floorHeightFt}ft)`, qty: fpSF, unit: 'SF', unitCost: 0 });
+  }
+}
+function removeBuildingEstItems(b) {
+  STATE.lineItems = STATE.lineItems.filter(li => !li.id.startsWith(b.id));
+}
+function addInfraEstItem(infra) {
+  STATE.lineItems.push({ id: infra.id, category: 'INFRASTRUCTURE', component: infra.label, qty: infra.lengthLF, unit: 'LF', unitCost: 0 });
+}
+function removeInfraEstItem(infra) {
+  STATE.lineItems = STATE.lineItems.filter(li => li.id !== infra.id);
+}
+
+function renderEstimation() {
+  const tbody = document.getElementById('est-tbody');
+  let html = '';
+  let curCat = '';
+  let grandTotal = 0;
+
+  // sort: STRUCTURE first, then INFRASTRUCTURE
+  const sorted = [...STATE.lineItems].sort((a, b) => {
+    if (a.category === b.category) return 0;
+    return a.category === 'STRUCTURE' ? -1 : 1;
+  });
+
+  sorted.forEach((item, idx) => {
+    const realIdx = STATE.lineItems.indexOf(item);
+    if (item.category !== curCat) {
+      curCat = item.category;
+      html += `<tr class="cat-row"><td colspan="5">${curCat}</td></tr>`;
+    }
+    const sub = item.qty * (item.unitCost || 0);
+    grandTotal += sub;
+    html += `<tr>
+      <td>${item.component}</td>
+      <td class="qty-cell">${item.qty.toLocaleString()}</td>
+      <td>${item.unit}</td>
+      <td><input type="number" value="${item.unitCost || ''}" placeholder="0" data-idx="${realIdx}"></td>
+      <td class="sub-cell ${sub > 0 ? 'has-val' : ''}">${sub > 0 ? '$' + sub.toLocaleString() : '—'}</td>
+    </tr>`;
+  });
+
+  html += `<tr class="total-row">
+    <td colspan="4" style="text-align:right;padding-right:12px">GRAND TOTAL</td>
+    <td class="sub-cell has-val" style="color:#4ade80;font-size:13px">$${grandTotal.toLocaleString()}</td>
+  </tr>`;
+
+  tbody.innerHTML = html;
+
+  // Bind inputs
+  tbody.querySelectorAll('input[type="number"]').forEach(inp => {
+    inp.addEventListener('change', (e) => {
+      const i = parseInt(e.target.dataset.idx);
+      STATE.lineItems[i].unitCost = parseFloat(e.target.value) || 0;
+      renderEstimation();
+    });
+  });
+}
+
+// ═════════════════════════════════════════════
+// OBJECT SELECTION & PROPERTIES
+// ═════════════════════════════════════════════
+function selectObject(obj) {
+  STATE.selectedObject = obj;
+  if (!obj) { document.getElementById('props-panel').classList.remove('visible'); return; }
+
+  if (obj.type === 'building') showBuildingProps(obj);
+}
+
+function showBuildingProps(b) {
+  const p = document.getElementById('props-panel');
+  const fpSF = b.wFt * b.dFt;
+  const totalSF = fpSF * b.floors;
+  const perimLF = roundTo4(2 * (b.wFt + b.dFt));
+  const totalHt = b.floors * b.floorHeightFt;
+
+  let matHtml = '';
+  for (const [key, val] of Object.entries(MATERIAL_PRESETS)) {
+    const c = '#' + new THREE.Color(val.color).getHexString();
+    matHtml += `<div class="mat-swatch ${b.material === key ? 'active' : ''}" data-mat="${key}" style="background:${c}" title="${key}"></div>`;
+  }
+
+  p.innerHTML = `
+    <div class="pp-title">
+      <span>${b.name}</span>
+      <span style="font-size:10px;color:rgba(255,255,255,0.3)">${b.wFt}×${b.dFt} ft</span>
+    </div>
+    <div class="pp-row"><span class="pp-label">Footprint SF</span><span class="pp-value">${fpSF.toLocaleString()}</span></div>
+    <div class="pp-row"><span class="pp-label">Perimeter LF</span><span class="pp-value">${perimLF}</span></div>
+    <div class="pp-row"><span class="pp-label">Floors</span><span class="pp-value"><input type="number" min="1" max="100" value="${b.floors}" id="pp-floors" style="width:44px;text-align:center"></span></div>
+    <div class="pp-row"><span class="pp-label">Floor Height</span><span class="pp-value">
+      <select id="pp-fh">${Object.entries(FLOOR_HEIGHTS).map(([v, l]) => `<option value="${v}" ${parseInt(v) === b.floorHeightFt ? 'selected' : ''}>${l}</option>`).join('')}</select>
+    </span></div>
+    <div class="pp-row"><span class="pp-label">Total Height</span><span class="pp-value">${totalHt} ft</span></div>
+    <div class="pp-row"><span class="pp-label">Total SF</span><span class="pp-value" style="color:#4ade80">${totalSF.toLocaleString()}</span></div>
+    <div class="pp-row"><span class="pp-label">Material</span></div>
+    <div class="mat-grid">${matHtml}</div>
+    <div class="pp-actions">
+      <button class="danger" id="pp-delete">Delete</button>
+      <button id="pp-dup">Duplicate</button>
+    </div>
+  `;
+  p.classList.add('visible');
+
+  // Event bindings
+  document.getElementById('pp-floors').addEventListener('change', (e) => {
+    b.floors = Math.max(1, parseInt(e.target.value) || 1);
+    updateBuilding(b);
+  });
+  document.getElementById('pp-fh').addEventListener('change', (e) => {
+    b.floorHeightFt = parseInt(e.target.value);
+    updateBuilding(b);
+  });
+  p.querySelectorAll('.mat-swatch').forEach(sw => {
+    sw.addEventListener('click', () => {
+      b.material = sw.dataset.mat;
+      updateBuilding(b);
+    });
+  });
+  document.getElementById('pp-delete').addEventListener('click', () => deleteBuilding(b));
+  document.getElementById('pp-dup').addEventListener('click', () => duplicateBuilding(b));
+}
+
+function updateBuilding(b) {
+  createBuildingMesh(b);
+  scene.add(b.group);
+  addBuildingEstItems(b);
+  renderEstimation();
+  selectObject(b);
+  map.triggerRepaint();
+}
+
+function deleteBuilding(b) {
+  scene.remove(b.group);
+  STATE.buildings = STATE.buildings.filter(x => x !== b);
+  removeBuildingEstItems(b);
+  renderEstimation();
+  STATE.selectedObject = null;
+  document.getElementById('props-panel').classList.remove('visible');
+  map.triggerRepaint();
+}
+
+function duplicateBuilding(b) {
+  STATE.buildingCounter++;
+  const nb = { ...b };
+  nb.id = `bld-${Date.now()}`;
+  nb.name = `Building ${String.fromCharCode(64 + STATE.buildingCounter)}`;
+  nb.centerScene = b.centerScene.clone();
+  nb.centerScene.x += b.wM + 2;
+  nb.group = null;
+  createBuildingMesh(nb);
+  scene.add(nb.group);
+  STATE.buildings.push(nb);
+  addBuildingEstItems(nb);
+  renderEstimation();
+  selectObject(nb);
+  map.triggerRepaint();
+}
+
+// ═════════════════════════════════════════════
+// RAYCASTING
+// ═════════════════════════════════════════════
+function raycast(event) {
+  if (!scene) return [];
+  const rect = map.getCanvas().getBoundingClientRect();
+  const mouse = new THREE.Vector2(
+    ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    -((event.clientY - rect.top) / rect.height) * 2 + 1
+  );
+  const inv = lastProjectionMatrix.clone().invert();
+  const ro = new THREE.Vector3(mouse.x, mouse.y, -1).applyMatrix4(inv);
+  const re = new THREE.Vector3(mouse.x, mouse.y, 1).applyMatrix4(inv);
+  const rd = re.sub(ro).normalize();
+  const rc = new THREE.Raycaster();
+  rc.set(ro, rd);
+  const objs = [];
+  scene.traverse(o => { if (o.isMesh) objs.push(o); });
+  return rc.intersectObjects(objs, false);
+}
+
+map.getCanvas().addEventListener('click', (e) => {
+  if (STATE.activeTool) return;
+  const hits = raycast(e);
+  if (hits.length > 0) {
+    let target = hits[0].object;
+    while (target.parent && !target.userData?.ref) target = target.parent;
+    if (target.userData?.ref) {
+      selectObject(target.userData.ref);
+      return;
+    }
+  }
+  selectObject(null);
+});
+
+// ═════════════════════════════════════════════
+// CONTEXT MENU
+// ═════════════════════════════════════════════
+const ctxMenu = document.getElementById('ctx-menu');
+
+function buildContextMenu(x, y) {
+  let html = '';
+  html += '<div class="ctx-label">2D Shapes</div>';
+  html += '<div class="ctx-item" data-tool="Line">Line</div>';
+  html += '<div class="ctx-item" data-tool="Rectangle">Rectangle</div>';
+  html += '<div class="ctx-item" data-tool="Circle">Circle</div>';
+  html += '<div class="ctx-item" data-tool="Polygon">Polygon</div>';
+  html += '<div class="ctx-separator"></div>';
+  html += '<div class="ctx-label">3D Shapes</div>';
+  html += '<div class="ctx-item" data-tool="Box">Box (extrudable)</div>';
+  html += '<div class="ctx-item" data-tool="Cylinder">Cylinder</div>';
+  html += '<div class="ctx-separator"></div>';
+  html += '<div class="ctx-label">Infrastructure</div>';
+  html += '<div class="ctx-item" data-infra="road">Road</div>';
+  html += '<div class="ctx-item" data-infra="sidewalk">Sidewalk</div>';
+  html += '<div class="ctx-item" data-infra="driveway">Driveway</div>';
+  html += '<div class="ctx-item" data-infra="sewer">Sewer Pipe</div>';
+  html += '<div class="ctx-item" data-infra="water">Water Main</div>';
+  html += '<div class="ctx-item" data-infra="electrical">Electrical</div>';
+  html += '<div class="ctx-separator"></div>';
+  html += '<div class="ctx-label">Tools</div>';
+  html += '<div class="ctx-item" data-tool="Measure Distance">Measure Distance</div>';
+  html += '<div class="ctx-item" data-tool="Query Elevation">Query Elevation</div>';
+
+  if (STATE.selectedObject) {
+    html += '<div class="ctx-separator"></div>';
+    html += '<div class="ctx-label">Modify</div>';
+    html += '<div class="ctx-item" data-action="delete">Delete</div>';
+    html += '<div class="ctx-item" data-action="duplicate">Duplicate</div>';
+    html += '<div class="ctx-item" data-action="properties">Properties...</div>';
+  }
+
+  ctxMenu.innerHTML = html;
+  ctxMenu.style.left = x + 'px';
+  ctxMenu.style.top = y + 'px';
+  ctxMenu.classList.add('visible');
+
+  // Bind
+  ctxMenu.querySelectorAll('.ctx-item[data-tool]').forEach(el => {
+    el.addEventListener('click', () => { ctxMenu.classList.remove('visible'); startDrawTool(el.dataset.tool); });
+  });
+  ctxMenu.querySelectorAll('.ctx-item[data-infra]').forEach(el => {
+    el.addEventListener('click', () => { ctxMenu.classList.remove('visible'); startDrawTool(INFRA_CONFIG[el.dataset.infra].label, INFRA_CONFIG[el.dataset.infra]); });
+  });
+  ctxMenu.querySelectorAll('.ctx-item[data-action]').forEach(el => {
+    el.addEventListener('click', () => {
+      ctxMenu.classList.remove('visible');
+      const a = el.dataset.action;
+      if (a === 'delete' && STATE.selectedObject?.type === 'building') deleteBuilding(STATE.selectedObject);
+      else if (a === 'duplicate' && STATE.selectedObject?.type === 'building') duplicateBuilding(STATE.selectedObject);
+      else if (a === 'properties' && STATE.selectedObject) selectObject(STATE.selectedObject);
+    });
+  });
+}
+
+map.getCanvas().addEventListener('contextmenu', (e) => {
+  if (!STATE.drawingMode) return;
+  e.preventDefault();
+  buildContextMenu(e.clientX, e.clientY);
+});
+
+document.addEventListener('click', (e) => {
+  if (!ctxMenu.contains(e.target)) ctxMenu.classList.remove('visible');
+});
+
+// ═════════════════════════════════════════════
+// SIDEBAR BUTTONS
+// ═════════════════════════════════════════════
+
+// Save
+document.getElementById('btn-save').addEventListener('click', () => {
+  const data = {
+    version: 1,
+    siteCenter,
+    buildings: STATE.buildings.map(b => ({
+      name: b.name, cornerA: b.cornerA, cornerB: b.cornerB,
+      floors: b.floors, floorHeightFt: b.floorHeightFt, material: b.material
+    })),
+    infrastructure: STATE.infrastructure.map(i => ({
+      subtype: i.subtype, label: i.label, controlPoints: i.controlPoints, config: i.config
+    })),
+    lineItems: STATE.lineItems
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `site-plan-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// Open
+document.getElementById('btn-open').addEventListener('click', () => {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.json';
+  inp.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        loadProject(data);
+      } catch (err) { alert('Invalid project file'); }
+    };
+    reader.readAsText(file);
+  });
+  inp.click();
+});
+
+function loadProject(data) {
+  // Clear scene
+  if (scene) {
+    const toRemove = [];
+    scene.traverse(o => { if (o.isMesh || o.isLine || o.isGroup) toRemove.push(o); });
+    toRemove.forEach(o => { if (o.parent && !o.isLight) o.parent.remove(o); });
+  }
+  STATE.buildings = [];
+  STATE.infrastructure = [];
+  STATE.lineItems = [];
+  STATE.buildingCounter = 0;
+
+  if (data.siteCenter) {
+    siteCenter = data.siteCenter;
+    originMercator = mapboxgl.MercatorCoordinate.fromLngLat(siteCenter, 0);
+    sceneOrigin.translateX = originMercator.x;
+    sceneOrigin.translateY = originMercator.y;
+    sceneOrigin.translateZ = originMercator.z;
+    sceneOrigin.scale = originMercator.meterInMercatorCoordinateUnits();
+    map.flyTo({ center: siteCenter, zoom: 17, pitch: 60 });
+  }
+
+  // Rebuild buildings
+  if (data.buildings) {
+    data.buildings.forEach(bd => {
+      STATE.buildingCounter++;
+      const a = lngLatToScene(bd.cornerA.lng, bd.cornerA.lat, 0);
+      const b = lngLatToScene(bd.cornerB.lng, bd.cornerB.lat, 0);
+      const building = {
+        id: `bld-${Date.now()}-${STATE.buildingCounter}`,
+        name: bd.name || `Building ${String.fromCharCode(64 + STATE.buildingCounter)}`,
+        type: 'building',
+        cornerA: bd.cornerA, cornerB: bd.cornerB,
+        centerScene: new THREE.Vector3((a.x + b.x) / 2, 0, (a.z + b.z) / 2),
+        wM: Math.abs(b.x - a.x), dM: Math.abs(b.z - a.z),
+        wFt: Math.round(Math.abs(b.x - a.x) * METERS_TO_FEET),
+        dFt: Math.round(Math.abs(b.z - a.z) * METERS_TO_FEET),
+        floors: bd.floors || 1,
+        floorHeightFt: bd.floorHeightFt || 10,
+        material: bd.material || 'concrete',
+        group: null
+      };
+      createBuildingMesh(building);
+      scene.add(building.group);
+      STATE.buildings.push(building);
+      addBuildingEstItems(building);
+    });
+  }
+
+  // Rebuild infrastructure
+  if (data.infrastructure) {
+    data.infrastructure.forEach(inf => {
+      const pts = inf.controlPoints.map(ll => {
+        const sp = lngLatToScene(ll[0], ll[1], inf.config?.depth || 0);
+        sp.y = inf.config?.depth || 0;
+        return sp;
+      });
+      if (pts.length < 2) return;
+      const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+      const c = inf.config || INFRA_CONFIG[inf.subtype] || INFRA_CONFIG.road;
+      let geo;
+      if (c.radius !== undefined) {
+        geo = new THREE.TubeGeometry(curve, pts.length * 16, c.radius, 8, false);
+      } else {
+        const shape = new THREE.Shape();
+        const hw = (c.width || 6) / 2;
+        shape.moveTo(-hw, -0.05); shape.lineTo(hw, -0.05); shape.lineTo(hw, 0.05); shape.lineTo(-hw, 0.05); shape.closePath();
+        geo = new THREE.ExtrudeGeometry(shape, { steps: pts.length * 16, extrudePath: curve, bevelEnabled: false });
+      }
+      const mat = new THREE.MeshStandardMaterial({ color: c.color, roughness: 0.8 });
+      const mesh = new THREE.Mesh(geo, mat);
+      scene.add(mesh);
+      const infra = {
+        id: `infra-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        type: 'infrastructure', subtype: inf.subtype, label: inf.label,
+        lengthLF: Math.round(curve.getLength() * METERS_TO_FEET),
+        controlPoints: inf.controlPoints, mesh, config: c
+      };
+      mesh.userData = { ref: infra };
+      STATE.infrastructure.push(infra);
+      addInfraEstItem(infra);
+    });
+  }
+
+  if (data.lineItems) {
+    // Merge unitCosts from saved data
+    data.lineItems.forEach(saved => {
+      const match = STATE.lineItems.find(li => li.component === saved.component);
+      if (match && saved.unitCost) match.unitCost = saved.unitCost;
+    });
+  }
+
+  renderEstimation();
+  map.triggerRepaint();
+}
+
+// Layer switcher
+const flyoutLayers = document.getElementById('flyout-layers');
+document.getElementById('btn-layers').addEventListener('click', (e) => {
+  e.stopPropagation();
+  flyoutLayers.classList.toggle('visible');
+});
+flyoutLayers.querySelectorAll('.flyout-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const style = item.dataset.style;
+    map.setStyle(style);
+    flyoutLayers.querySelectorAll('.flyout-item').forEach(i => i.classList.remove('active-style'));
+    item.classList.add('active-style');
+    flyoutLayers.classList.remove('visible');
+  });
+});
+
+// Terrain toggle
+let terrainLevel = 0;
+const terrainLevels = [1.0, 1.5, 2.0, 0]; // 0 = off
+document.getElementById('btn-terrain').addEventListener('click', () => {
+  terrainLevel = (terrainLevel + 1) % terrainLevels.length;
+  const exag = terrainLevels[terrainLevel];
+  const btn = document.getElementById('btn-terrain');
+  if (exag === 0) {
+    map.setTerrain(null);
+    STATE.terrainOn = false;
+    btn.classList.remove('active');
+  } else {
+    if (!STATE.terrainOn) {
+      try { map.addSource('mapbox-dem', { type: 'raster-dem', url: 'mapbox://mapbox.mapbox-terrain-dem-v1', tileSize: 512, maxzoom: 14 }); } catch(e){}
+    }
+    map.setTerrain({ source: 'mapbox-dem', exaggeration: exag });
+    STATE.terrainOn = true;
+    STATE.terrainExag = exag;
+    btn.classList.add('active');
+  }
+});
+
+// Labels toggle
+document.getElementById('btn-labels').addEventListener('click', () => {
+  STATE.labelsOn = !STATE.labelsOn;
+  const btn = document.getElementById('btn-labels');
+  btn.classList.toggle('active', STATE.labelsOn);
+  // Toggle label layers
+  const layers = map.getStyle().layers || [];
+  layers.forEach(l => {
+    if (l.type === 'symbol') {
+      try { map.setLayoutProperty(l.id, 'visibility', STATE.labelsOn ? 'visible' : 'none'); } catch(e){}
+    }
+  });
+});
+
+// Import 3D model
+document.getElementById('btn-import').addEventListener('click', () => {
+  clearActiveTool();
+  map.getCanvas().style.cursor = 'crosshair';
+  setActiveTool('Import 3D Model', 'Click on map to place model');
+
+  drawClickHandler = (e) => {
+    clearActiveTool();
+    const { lng, lat } = e.lngLat;
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.glb,.gltf,.obj';
+    inp.addEventListener('change', async (ev) => {
+      const file = ev.target.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      const ext = file.name.split('.').pop().toLowerCase();
+
+      try {
+        let model;
+        if (ext === 'glb' || ext === 'gltf') {
+          const dracoLoader = new DRACOLoader();
+          dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+          const loader = new GLTFLoader();
+          loader.setDRACOLoader(dracoLoader);
+          const gltf = await new Promise((res, rej) => loader.load(url, res, undefined, rej));
+          model = gltf.scene;
+        } else if (ext === 'obj') {
+          const loader = new OBJLoader();
+          model = await new Promise((res, rej) => loader.load(url, res, undefined, rej));
+        }
+
+        if (model) {
+          const pos = lngLatToScene(lng, lat, 0);
+          model.position.copy(pos);
+          model.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+          model.userData = { type: 'imported-model', name: file.name, lngLat: [lng, lat] };
+          scene.add(model);
+          STATE.importedModels.push(model);
+          map.triggerRepaint();
+        }
+      } catch (err) { console.error('Import error:', err); }
+      URL.revokeObjectURL(url);
+    });
+    inp.click();
+  };
+  map.on('click', drawClickHandler);
+});
+
+// Drawing mode toggle
+document.getElementById('btn-draw').addEventListener('click', () => {
+  STATE.drawingMode = !STATE.drawingMode;
+  document.getElementById('btn-draw').classList.toggle('active', STATE.drawingMode);
+  if (!STATE.drawingMode) clearActiveTool();
+});
+
+// Estimation panel toggle
+document.getElementById('btn-estimation').addEventListener('click', () => {
+  document.getElementById('estimation-panel').classList.toggle('visible');
+  document.getElementById('btn-estimation').classList.toggle('active');
+});
+
+// Export CSV
+document.getElementById('btn-export-csv').addEventListener('click', () => {
+  let csv = 'Component,Quantity,Unit,Unit Cost,Subtotal\n';
+  STATE.lineItems.forEach(item => {
+    const sub = item.qty * (item.unitCost || 0);
+    csv += `"${item.component}",${item.qty},${item.unit},${item.unitCost || 0},${sub}\n`;
+  });
+  const grandTotal = STATE.lineItems.reduce((s, i) => s + i.qty * (i.unitCost || 0), 0);
+  csv += `"GRAND TOTAL",,,,"$${grandTotal}"\n`;
+
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `estimation-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// ═════════════════════════════════════════════
+// ADDRESS / GEOCODE SEARCH
+// ═════════════════════════════════════════════
+const searchInput = document.getElementById('search-input');
+const acContainer = document.getElementById('autocomplete');
+let searchTimeout;
+
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimeout);
+  const q = searchInput.value.trim();
+  if (q.length < 3) { acContainer.classList.remove('visible'); return; }
+  searchTimeout = setTimeout(() => geocode(q), 300);
+});
+
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const q = searchInput.value.trim();
+    // Check if it's coordinates
+    const coordMatch = q.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
+    if (coordMatch) {
+      const lat = parseFloat(coordMatch[1]);
+      const lng = parseFloat(coordMatch[2]);
+      flyToSite(lng, lat);
+      acContainer.classList.remove('visible');
+      return;
+    }
+    geocode(q, true);
+  }
+});
+
+async function geocode(query, flyOnFirst = false) {
+  try {
+    const token = mapboxgl.accessToken;
+    const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&limit=5`);
+    const data = await res.json();
+    if (!data.features?.length) { acContainer.classList.remove('visible'); return; }
+
+    if (flyOnFirst) {
+      const f = data.features[0];
+      flyToSite(f.center[0], f.center[1]);
+      searchInput.value = f.place_name;
+      acContainer.classList.remove('visible');
+      return;
+    }
+
+    acContainer.innerHTML = data.features.map(f => `
+      <div class="ac-item" data-lng="${f.center[0]}" data-lat="${f.center[1]}">
+        <div class="ac-place">${f.text}</div>
+        <div class="ac-context">${f.place_name}</div>
+      </div>
+    `).join('');
+    acContainer.classList.add('visible');
+
+    acContainer.querySelectorAll('.ac-item').forEach(item => {
+      item.addEventListener('click', () => {
+        flyToSite(parseFloat(item.dataset.lng), parseFloat(item.dataset.lat));
+        searchInput.value = item.querySelector('.ac-place').textContent;
+        acContainer.classList.remove('visible');
+      });
+    });
+  } catch (err) { console.error('Geocode error:', err); }
+}
+
+function flyToSite(lng, lat) {
+  // Update scene origin
+  siteCenter = [lng, lat];
+  originMercator = mapboxgl.MercatorCoordinate.fromLngLat(siteCenter, 0);
+  sceneOrigin.translateX = originMercator.x;
+  sceneOrigin.translateY = originMercator.y;
+  sceneOrigin.translateZ = originMercator.z;
+  sceneOrigin.scale = originMercator.meterInMercatorCoordinateUnits();
+
+  map.flyTo({ center: [lng, lat], zoom: 17, pitch: 60, bearing: 0, duration: 2000, essential: true });
+}
+
+// Close autocomplete on click outside
+document.addEventListener('click', (e) => {
+  if (!document.getElementById('address-bar').contains(e.target)) acContainer.classList.remove('visible');
+});
+
+// Close flyout on click outside
+document.addEventListener('click', (e) => {
+  if (!document.getElementById('btn-layers').contains(e.target) && !flyoutLayers.contains(e.target)) {
+    flyoutLayers.classList.remove('visible');
+  }
+});
+
+// ═════════════════════════════════════════════
+// KEYBOARD SHORTCUTS
+// ═════════════════════════════════════════════
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+
+  if (e.key === 'Escape') {
+    clearActiveTool();
+    selectObject(null);
+    ctxMenu.classList.remove('visible');
+    return;
+  }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && STATE.selectedObject?.type === 'building') {
+    deleteBuilding(STATE.selectedObject);
+    return;
+  }
+  if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); return; }
+  if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); redo(); return; }
+  if (e.key === 'g' || e.key === 'G') { STATE.gridSnap = !STATE.gridSnap; return; }
+  if (e.key === 'm' || e.key === 'M') { startDrawTool('Measure Distance'); return; }
+  if (e.key === 's' || e.key === 'S') { clearActiveTool(); return; }
+});
+
+// Prevent browser context menu globally when in drawing mode
+document.addEventListener('contextmenu', (e) => {
+  if (STATE.drawingMode) e.preventDefault();
+});
+
+// Init
+renderEstimation();
+</script>
+</body>
+</html>
