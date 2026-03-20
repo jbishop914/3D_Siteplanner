@@ -309,24 +309,27 @@ function redo() { if (!redoStack.length) return; const a = redoStack.pop(); a.ex
 // ═════════════════════════════════════════════
 mapboxgl.accessToken = window.__MAPBOX_TOKEN || 'YOUR_MAPBOX_ACCESS_TOKEN';
 
-// Validate token before initializing
+// Validate token — show error as overlay ABOVE #map (not inside it) to avoid Mapbox "container should be empty" warning
 const _tk = mapboxgl.accessToken;
 const tokenMissing = !_tk || _tk === 'YOUR_MAPBOX_ACCESS_TOKEN';
 const tokenIsSecret = _tk && _tk.startsWith('sk.');
+function showTokenError(title, msg, strokeColor = 'rgba(255,255,255,0.3)', titleColor = 'rgba(255,255,255,0.8)') {
+  const overlay = document.createElement('div');
+  overlay.id = 'token-error';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:rgba(255,255,255,0.6);font-size:13px;text-align:center;padding:40px;background:rgba(0,0,0,0.85)';
+  overlay.innerHTML = `
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="${strokeColor}" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <div style="font-weight:600;color:${titleColor}">${title}</div>
+    <div>${msg}</div>`;
+  document.body.appendChild(overlay);
+}
 if (tokenMissing) {
-  document.getElementById('map').innerHTML = `
-    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:rgba(255,255,255,0.6);font-size:13px;text-align:center;padding:40px">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-      <div style="font-weight:600;color:rgba(255,255,255,0.8)">Mapbox Token Required</div>
-      <div>Set your <code style="background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:3px">MAPBOX_TOKEN</code> env variable to a <strong>public</strong> token (starts with <code style="background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:3px">pk.</code>)</div>
-    </div>`;
+  showTokenError('Mapbox Token Required',
+    'Set your <code style="background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:3px">MAPBOX_TOKEN</code> env variable to a <strong>public</strong> token (starts with <code style="background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:3px">pk.</code>)');
 } else if (tokenIsSecret) {
-  document.getElementById('map').innerHTML = `
-    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:rgba(255,255,255,0.6);font-size:13px;text-align:center;padding:40px">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,100,100,0.5)" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-      <div style="font-weight:600;color:rgba(255,180,180,0.9)">Wrong Token Type</div>
-      <div>You're using a <strong>secret</strong> token (<code style="background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:3px">sk.</code>) — Mapbox GL JS requires a <strong>public</strong> token (<code style="background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:3px">pk.</code>)<br><br>Go to <a href="https://account.mapbox.com/access-tokens/" target="_blank" style="color:#4dabf7">account.mapbox.com/access-tokens</a> and copy your <strong>Default public token</strong></div>
-    </div>`;
+  showTokenError('Wrong Token Type',
+    'You\'re using a <strong>secret</strong> token (<code style="background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:3px">sk.</code>) — Mapbox GL JS requires a <strong>public</strong> token (<code style="background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:3px">pk.</code>)<br><br>Go to <a href="https://account.mapbox.com/access-tokens/" target="_blank" style="color:#4dabf7">account.mapbox.com/access-tokens</a> and copy your <strong>Default public token</strong></div>',
+    'rgba(255,100,100,0.5)', 'rgba(255,180,180,0.9)');
 }
 
 const map = new mapboxgl.Map({
@@ -344,6 +347,7 @@ map.on('error', (e) => {
   console.error('Mapbox error:', e.error?.message || e.error || e);
 });
 
+
 // ═════════════════════════════════════════════
 // SCENE ORIGIN & COORD HELPERS
 // ═════════════════════════════════════════════
@@ -356,20 +360,23 @@ let sceneOrigin = {
   scale: originMercator.meterInMercatorCoordinateUnits()
 };
 
+// Coordinate mapping:
+//   Scene X = Mercator X (east-west)
+//   Scene Y = altitude (up) — standard Three.js Y-up convention
+//   Scene Z = -Mercator Y (north-south, negated so north is -Z)
 function lngLatToScene(lng, lat, alt = 0) {
   const mc = mapboxgl.MercatorCoordinate.fromLngLat([lng, lat], alt);
   return new THREE.Vector3(
     (mc.x - sceneOrigin.translateX) / sceneOrigin.scale,
-    -(mc.y - sceneOrigin.translateY) / sceneOrigin.scale,
-    (mc.z - sceneOrigin.translateZ) / sceneOrigin.scale
+    mc.z / sceneOrigin.scale,
+    -(mc.y - sceneOrigin.translateY) / sceneOrigin.scale
   );
 }
 
 function sceneToLngLat(pos) {
   const mx = pos.x * sceneOrigin.scale + sceneOrigin.translateX;
-  const my = -pos.y * sceneOrigin.scale + sceneOrigin.translateY;
-  const mz = pos.z * sceneOrigin.scale + sceneOrigin.translateZ;
-  const mc = new mapboxgl.MercatorCoordinate(mx, my, mz);
+  const my = -pos.z * sceneOrigin.scale + sceneOrigin.translateY;
+  const mc = new mapboxgl.MercatorCoordinate(mx, my, 0);
   const ll = mc.toLngLat();
   return { lng: ll.lng, lat: ll.lat };
 }
@@ -409,9 +416,16 @@ const customLayer = {
     // Support both new and old Mapbox callback signatures
     const matrix = args?.defaultProjectionData?.mainMatrix || args;
     const m = new THREE.Matrix4().fromArray(matrix);
-    const l = new THREE.Matrix4()
-      .makeTranslation(sceneOrigin.translateX, sceneOrigin.translateY, sceneOrigin.translateZ)
-      .scale(new THREE.Vector3(sceneOrigin.scale, -sceneOrigin.scale, sceneOrigin.scale));
+    // Transform from scene space (X=east, Y=up, Z=north) to Mercator space (X=east, Y=south, Z=altitude)
+    // Scene Y (up) → Mercator Z (altitude): scale
+    // Scene Z (north) → Mercator Y (south): -scale
+    const l = new THREE.Matrix4();
+    l.set(
+      sceneOrigin.scale, 0, 0, sceneOrigin.translateX,
+      0, 0, -sceneOrigin.scale, sceneOrigin.translateY,
+      0, sceneOrigin.scale, 0, sceneOrigin.translateZ,
+      0, 0, 0, 1
+    );
 
     camera.projectionMatrix = m.multiply(l);
     lastProjectionMatrix.copy(camera.projectionMatrix);
@@ -481,6 +495,7 @@ function clearActiveTool() {
 
 function startDrawTool(toolName, config) {
   clearActiveTool();
+
   map.dragPan.disable();
   map.doubleClickZoom.disable();
   map.getCanvas().style.cursor = 'crosshair';
@@ -503,6 +518,7 @@ function startDrawTool(toolName, config) {
 function startRectangle() {
   drawState = { cornerA: null };
   drawClickHandler = (e) => {
+
     const { lng, lat } = e.lngLat;
     const sp = lngLatToScene(lng, lat, 0);
     if (!drawState.cornerA) {
